@@ -5,6 +5,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { databaseConfig } from './config/database.config';
 import { TodoModule } from './todo/todo.module';
+import { ProfileModule } from './profile/profile.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { TodoModule } from './todo/todo.module';
       }),
     }),
     TodoModule,
+    ProfileModule,
   ],
   controllers: [AppController],
   providers: [AppService],
