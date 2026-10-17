@@ -1,124 +1,169 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Todo Backend
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+REST API for the [TaskFlow](../todo-react-ts-task) React todo app, built with
+[NestJS](https://nestjs.com), [TypeORM](https://typeorm.io), and PostgreSQL.
+Interactive API docs are served with [Swagger](https://swagger.io).
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Features
 
-## Description
+- Todo CRUD (`id`, `title`, `status`, `starred`, `createdAt`, `updatedAt`)
+- Filter by status, case-insensitive title search, `starred`-first sorting
+- Dashboard stats endpoint (total / to do / in progress / done / starred)
+- Bulk status update and bulk delete
+- Request validation via `class-validator` (global `ValidationPipe`)
+- Swagger UI + OpenAPI JSON
+- TypeORM migrations with a shared data source for the CLI
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## Requirements
 
-## Project setup
+- Node.js 20+
+- PostgreSQL 13+ (Docker is the easiest route)
+
+## Setup
 
 ```bash
-$ npm install
+# 1. Install dependencies
+npm install
+
+# 2. Start PostgreSQL (creates the todo_db database)
+docker compose up -d
+
+# 3. Configure environment (defaults already match compose.yaml)
+cp .env.example .env
+
+# 4. Run migrations
+npm run migration:run
+
+# 5. Start the API (watch mode)
+npm run start:dev
 ```
 
-## Compile and run the project
+- API base URL: `http://localhost:3000`
+- Swagger UI: `http://localhost:3000/docs`
+- OpenAPI JSON: `http://localhost:3000/docs/json`
+
+## pgAdmin (database GUI)
+
+`docker compose up -d` also starts pgAdmin at **http://localhost:5050**:
+
+|           | Value               |
+| --------- | ------------------- |
+| Email     | `admin@example.com` |
+| Password  | `admin`             |
+| PG server | `TaskFlow Postgres` |
+
+The Postgres server is pre-registered (see `docker/pgadmin/servers.json`), so
+after logging in just expand **Servers → TaskFlow Postgres → Databases →
+todo_db → Schemas → public → Tables → todos**. It asks for the database
+password on first connect: `postgres`.
+
+Data is kept in named volumes (`todo-postgres-data`, `todo-pgadmin-data`), so
+`docker compose down` / `up`, restarts, and rebuilds all preserve both the
+database contents and your pgAdmin settings.
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+docker compose up -d            # start Postgres + pgAdmin
+docker compose stop             # stop both, keep the data
+docker compose down             # remove containers, keep the volumes
+docker compose down -v          # remove containers AND wipe the volumes
 ```
 
-## Run tests
+## Environment variables
+
+| Variable      | Default     | Description          |
+| ------------- | ----------- | -------------------- |
+| `PORT`        | `3000`      | HTTP port            |
+| `DB_HOST`     | `localhost` | PostgreSQL host      |
+| `DB_PORT`     | `5432`      | PostgreSQL port      |
+| `DB_USER`     | `postgres`  | PostgreSQL user      |
+| `DB_PASSWORD` | `postgres`  | PostgreSQL password  |
+| `DB_NAME`     | `todo_db`   | PostgreSQL database  |
+
+## API
+
+All routes are prefixed with `/api/v1`.
+
+| Method   | Route                     | Description                          |
+| -------- | ------------------------- | ------------------------------------ |
+| `POST`   | `/api/v1/todo`            | Create a todo                        |
+| `GET`    | `/api/v1/todo?status=&q=` | List todos (filter + search + sort)  |
+| `GET`    | `/api/v1/todo/stats`      | Dashboard counts                     |
+| `GET`    | `/api/v1/todo/:id`        | Get one todo                         |
+| `PATCH`  | `/api/v1/todo/:id`        | Update `title`, `status`, `starred`  |
+| `PATCH`  | `/api/v1/todo/bulk/status`| Set the status of many todos         |
+| `DELETE` | `/api/v1/todo/bulk`       | Delete many todos (ids in body)      |
+| `DELETE` | `/api/v1/todo/:id`        | Delete one todo                      |
+
+`createdAt` / `updatedAt` are epoch milliseconds, matching the frontend types.
+`starred` is server-driven: send the desired value, not a toggle.
+
+### Examples
 
 ```bash
-# unit tests
-$ npm run test
+# Create
+curl -X POST http://localhost:3000/api/v1/todo \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"Buy groceries","status":"To Do"}'
 
-# e2e tests
-$ npm run test:e2e
+# List In Progress todos containing "report"
+curl 'http://localhost:3000/api/v1/todo?status=In%20Progress&q=report'
 
-# test coverage
-$ npm run test:cov
+# Star / unstar
+curl -X PATCH http://localhost:3000/api/v1/todo/<id> \
+  -H 'Content-Type: application/json' \
+  -d '{"starred":true}'
+
+# Bulk status change
+curl -X PATCH http://localhost:3000/api/v1/todo/bulk/status \
+  -H 'Content-Type: application/json' \
+  -d '{"ids":["<id-1>","<id-2>"],"status":"Done"}'
+
+# Bulk delete
+curl -X DELETE http://localhost:3000/api/v1/todo/bulk \
+  -H 'Content-Type: application/json' \
+  -d '{"ids":["<id-1>","<id-2>"]}'
 ```
 
-## Deployment
+## Database & migrations
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+The connection is defined once in `src/config/database.config.ts` and shared by
+the Nest runtime and the TypeORM CLI. `synchronize` is off — schema changes go
+through migrations in `src/migrations/`.
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+npm run migration:generate -- src/migrations/MyChange   # generate from entity changes
+npm run migration:run                                   # apply pending migrations
+npm run migration:revert                                # roll back the last one
+npm run migration:show                                  # list applied/pending
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Observability
-
-In production applications, observability is essential for understanding how your system behaves, detecting issues early, and maintaining reliable performance.
-
-[NestJS Observe](https://observe.nestjs.com) automatically instruments your NestJS application, giving you deep visibility into your system with minimal setup:
-
-- **Distributed tracing:** Follow requests across services and understand how they flow through your system.
-- **Waterfall analysis:** Visualize request execution and identify slow operations, bottlenecks, and unexpected delays.
-- **Performance analysis:** Analyze application performance in real time and quickly pinpoint areas that need optimization.
-- **Metrics:** Track key application and infrastructure metrics to understand system health and performance trends.
-- **Logging:** Centralize and correlate logs with traces and other telemetry to make debugging easier.
-- **Error tracking:** Detect errors quickly and investigate their root causes with the surrounding context.
-- **SLA monitoring:** Track service-level objectives and identify when your application is approaching or exceeding defined thresholds.
-- **Alarms and alerts:** Set up alerts for critical errors, performance degradation, SLA violations, and other anomalies so your team can react quickly.
-
-To add it to this project:
+## Tests
 
 ```bash
-$ npm install @nestjs/observe
+npm test          # unit tests
+npm run test:e2e  # e2e tests against a todo_db_test database
 ```
 
-Then follow the [setup guide](https://docs.nestjs.com/observability/overview) - it takes a single import and an app key.
+The e2e suite runs against `todo_db_test` (set in `test/setup-env.ts`). Create
+and migrate it once:
 
-The free plan needs no payment details and covers 300,000 events a month. You can also browse the [live demo](https://www.observe-demo.nestjs.com/dashboard) first - the whole dashboard over a busy service's data, with nothing to install.
+```bash
+docker exec todo-postgres psql -U postgres -c "CREATE DATABASE todo_db_test;"
+DB_NAME=todo_db_test npm run migration:run
+```
 
-## Resources
+## Project structure
 
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Auto-instrument your application with [NestJS Observe](https://observe.nestjs.com). Distributed tracing, metrics, and logging made easy. Error tracking and performance monitoring for your NestJS applications.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+```
+src/
+├── config/database.config.ts   # shared TypeORM data source (Nest + CLI)
+├── migrations/                 # generated migrations
+├── todo/
+│   ├── dto/                    # create/update/query/bulk payloads + responses
+│   ├── entities/todo.entity.ts # todos table mapping
+│   ├── todo.controller.ts      # routes + Swagger decorators
+│   ├── todo.service.ts         # query/filter/stats/bulk logic
+│   └── todo.module.ts
+├── app.module.ts               # ConfigModule + TypeOrmModule wiring
+└── main.ts                     # CORS, ValidationPipe, Swagger setup
+```

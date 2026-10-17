@@ -1,0 +1,46 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: todo-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: todo_db
+    ports:
+      - '5432:5432'
+    volumes:
+      - todo-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: todo-pgadmin
+    restart: unless-stopped
+    environment:
+      # Desktop (single-user) mode: no login screen beyond the credentials below.
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+      # Keeps the pgAdmin master password stable between restarts.
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
+    ports:
+      - '5050:80'
+    volumes:
+      # Persists pgAdmin settings and any servers you add by hand.
+      - todo-pgadmin-data:/var/lib/pgadmin
+      # Pre-registers the Postgres server so it shows up on first launch.
+      - ./docker/pgadmin/servers.json:/pgadmin4/servers.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  todo-postgres-data:
+    name: todo-postgres-data
+  todo-pgadmin-data:
+    name: todo-pgadmin-data
