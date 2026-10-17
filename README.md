@@ -93,9 +93,17 @@ All routes are prefixed with `/api/v1`.
 | `PATCH`  | `/api/v1/todo/bulk/status`| Set the status of many todos         |
 | `DELETE` | `/api/v1/todo/bulk`       | Delete many todos (ids in body)      |
 | `DELETE` | `/api/v1/todo/:id`        | Delete one todo                      |
+| `GET`    | `/api/v1/profile`         | Get the profile (defaults if unset)  |
+| `PUT`    | `/api/v1/profile`         | Create or update the profile         |
 
 `createdAt` / `updatedAt` are epoch milliseconds, matching the frontend types.
 `starred` is server-driven: send the desired value, not a toggle.
+
+The profile is a singleton row (no auth yet). `GET` returns the frontend
+defaults (`{ name: 'Guest', email: '', avatarColor: 'indigo' }`) until the first
+save. `PUT` accepts any subset of `name` (≤40), `email` (optional, empty string
+clears it), and `avatarColor` (one of the seven `AVATAR_COLORS` ids), and creates
+the row on first save. Sending an empty body is rejected with 400.
 
 ### Examples
 
@@ -122,6 +130,14 @@ curl -X PATCH http://localhost:3000/api/v1/todo/bulk/status \
 curl -X DELETE http://localhost:3000/api/v1/todo/bulk \
   -H 'Content-Type: application/json' \
   -d '{"ids":["<id-1>","<id-2>"]}'
+
+# Get the profile
+curl http://localhost:3000/api/v1/profile
+
+# Save the profile (creates it on first call)
+curl -X PUT http://localhost:3000/api/v1/profile \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"Seyha Yoeun","email":"you@example.com","avatarColor":"teal"}'
 ```
 
 ## Database & migrations
@@ -156,8 +172,15 @@ DB_NAME=todo_db_test npm run migration:run
 
 ```
 src/
+├── common/validators/          # reusable class-validator decorators
 ├── config/database.config.ts   # shared TypeORM data source (Nest + CLI)
 ├── migrations/                 # generated migrations
+├── profile/
+│   ├── dto/                    # create/update payloads + response
+│   ├── entities/profile.entity.ts # profiles table (singleton row)
+│   ├── profile.controller.ts   # GET + PUT /profile
+│   ├── profile.service.ts      # get-or-default / upsert logic
+│   └── profile.module.ts
 ├── todo/
 │   ├── dto/                    # create/update/query/bulk payloads + responses
 │   ├── entities/todo.entity.ts # todos table mapping
