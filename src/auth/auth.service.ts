@@ -17,6 +17,8 @@ import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { SignupDto } from './dto/signup.dto';
 import { User } from './entities/user.entity';
 
+import { Role } from './enums/role.enum';
+
 const BCRYPT_ROUNDS = 12;
 const POSTGRES_UNIQUE_VIOLATION = '23505';
 const DUPLICATE_EMAIL_MESSAGE = 'An account with this email already exists.';
@@ -24,6 +26,7 @@ const DUPLICATE_EMAIL_MESSAGE = 'An account with this email already exists.';
 interface AuthTokenPayload {
   sub: string;
   email: string;
+  role: Role;
   type: 'access' | 'refresh';
 }
 
@@ -60,6 +63,7 @@ export class AuthService {
       firstName,
       lastName,
       email,
+      role: signupDto.role ?? Role.USER,
       passwordHash: await bcrypt.hash(signupDto.password, BCRYPT_ROUNDS),
     });
 
@@ -120,7 +124,7 @@ export class AuthService {
   }
 
   private async issueTokens(user: User): Promise<AuthResponseDto> {
-    const payload = { sub: user.id, email: user.email };
+    const payload = { sub: user.id, email: user.email, role: user.role };
     const [accessToken, refreshToken] = await Promise.all([
       this.jwtService.signAsync({
         ...payload,
@@ -174,9 +178,18 @@ export class AuthService {
       firstName: user.firstName,
       lastName: user.lastName,
       email: user.email,
+      role: user.role ?? Role.USER,
       createdAt: new Date(user.createdAt).getTime(),
       updatedAt: new Date(user.updatedAt).getTime(),
     };
+  }
+
+  /** Admin endpoint: list all users */
+  async findAllUsers(): Promise<AuthUserResponseDto[]> {
+    const users = await this.userRepository.find({
+      order: { createdAt: 'DESC' },
+    });
+    return users.map((u) => this.toUserResponse(u));
   }
 
   private normalizeEmail(email: string): string {

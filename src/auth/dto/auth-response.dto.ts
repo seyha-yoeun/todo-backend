@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { Role } from '../enums/role.enum';
 
 /** Public user shape returned by the auth endpoints (never includes the hash). */
 export class AuthUserResponseDto {
@@ -13,6 +14,9 @@ export class AuthUserResponseDto {
 
   @ApiProperty({ example: 'you@example.com' })
   email: string;
+
+  @ApiProperty({ enum: Role, example: Role.USER })
+  role: Role;
 
   @ApiProperty({ example: 1760832000000, description: 'Epoch milliseconds' })
   createdAt: number;

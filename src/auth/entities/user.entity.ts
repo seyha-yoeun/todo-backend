@@ -3,9 +3,15 @@ import {
   CreateDateColumn,
   Entity,
   Index,
+  OneToMany,
+  OneToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+
+import { Role } from '../enums/role.enum';
+import { Profile } from '../../profile/entities/profile.entity';
+import { Todo } from '../../todo/entities/todo.entity';
 
 @Entity('users')
 export class User {
@@ -22,6 +28,13 @@ export class User {
   @Index('idx_users_email', { unique: true })
   @Column({ type: 'varchar', length: 254 })
   email: string;
+
+  @Column({
+    type: 'varchar',
+    length: 20,
+    default: Role.USER,
+  })
+  role: Role;
 
   /** Never selected by default; only the login query opts in. */
   @Column({
@@ -59,4 +72,10 @@ export class User {
 
   @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
   updatedAt: Date;
+
+  @OneToOne(() => Profile, (profile) => profile.user)
+  profile: Profile;
+
+  @OneToMany(() => Todo, (todo) => todo.user)
+  todos: Todo[];
 }

@@ -3,7 +3,10 @@ import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swa
 import { AppService } from './app.service';
 import { AuthService } from './auth/auth.service';
 import { CurrentUser } from './auth/decorators/current-user.decorator';
+import { Roles } from './auth/decorators/roles.decorator';
+import { Role } from './auth/enums/role.enum';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
+import { RolesGuard } from './auth/guards/roles.guard';
 import { User } from './auth/entities/user.entity';
 import { AuthUserResponseDto } from './auth/dto/auth-response.dto';
 
@@ -20,7 +23,8 @@ export class AppController {
   }
 
   @Get('me')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.USER, Role.ADMIN)
   @ApiBearerAuth()
   @ApiTags('auth')
   @ApiOperation({ summary: 'Get current user profile (root alias)' })

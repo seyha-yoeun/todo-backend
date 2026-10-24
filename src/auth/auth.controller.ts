@@ -22,7 +22,10 @@ import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { SignupDto } from './dto/signup.dto';
 import { CurrentUser } from './decorators/current-user.decorator';
+import { Roles } from './decorators/roles.decorator';
+import { Role } from './enums/role.enum';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { RolesGuard } from './guards/roles.guard';
 import { User } from './entities/user.entity';
 
 @ApiTags('auth')
@@ -57,13 +60,25 @@ export class AuthController {
   }
 
   @Get('me')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.USER, Role.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get the currently authenticated user' })
   @ApiOkResponse({ type: AuthUserResponseDto })
   @ApiUnauthorizedResponse({ description: 'Invalid or missing access token' })
   me(@CurrentUser() user: User): AuthUserResponseDto {
     return this.authService.toUserResponse(user);
+  }
+
+  @Get('users')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List all registered users (Admin only)' })
+  @ApiOkResponse({ type: AuthUserResponseDto, isArray: true })
+  @ApiUnauthorizedResponse({ description: 'Invalid or missing access token' })
+  findAllUsers(): Promise<AuthUserResponseDto[]> {
+    return this.authService.findAllUsers();
   }
 }
 
