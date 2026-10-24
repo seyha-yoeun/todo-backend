@@ -7,6 +7,7 @@ Interactive API docs are served with [Swagger](https://swagger.io).
 ## Features
 
 - Todo CRUD (`id`, `title`, `status`, `starred`, `createdAt`, `updatedAt`)
+- Signup and login with bcrypt password hashing and JWT access tokens
 - Filter by status, case-insensitive title search, `starred`-first sorting
 - Dashboard stats endpoint (total / to do / in progress / done / starred)
 - Bulk status update and bulk delete
@@ -70,10 +71,14 @@ docker compose down -v          # remove containers AND wipe the volumes
 
 ## Environment variables
 
-| Variable      | Default     | Description          |
-| ------------- | ----------- | -------------------- |
-| `PORT`        | `3000`      | HTTP port            |
-| `DB_HOST`     | `localhost` | PostgreSQL host      |
+| Variable                 | Default     | Description                          |
+| ------------------------ | ----------- | ------------------------------------ |
+| `PORT`                   | `3000`      | HTTP port                            |
+| `JWT_SECRET`             | —           | Secret used to sign access tokens (required) |
+| `JWT_EXPIRES_IN`         | `15m`       | Access token lifetime                |
+| `JWT_REFRESH_SECRET`     | —           | Secret used to sign refresh tokens (required) |
+| `JWT_REFRESH_EXPIRES_IN` | `30d`       | Refresh token lifetime               |
+| `DB_HOST`                | `localhost` | PostgreSQL host                      |
 | `DB_PORT`     | `5432`      | PostgreSQL port      |
 | `DB_USER`     | `postgres`  | PostgreSQL user      |
 | `DB_PASSWORD` | `postgres`  | PostgreSQL password  |
@@ -85,6 +90,9 @@ All routes are prefixed with `/api/v1`.
 
 | Method   | Route                     | Description                          |
 | -------- | ------------------------- | ------------------------------------ |
+| `POST`   | `/api/v1/auth/signup`     | Create an account, return token pair |
+| `POST`   | `/api/v1/auth/login`      | Log in, return a token pair          |
+| `POST`   | `/api/v1/auth/refresh`    | Rotate a refresh token               |
 | `POST`   | `/api/v1/todo`            | Create a todo                        |
 | `GET`    | `/api/v1/todo?status=&q=` | List todos (filter + search + sort)  |
 | `GET`    | `/api/v1/todo/stats`      | Dashboard counts                     |
@@ -99,15 +107,51 @@ All routes are prefixed with `/api/v1`.
 `createdAt` / `updatedAt` are epoch milliseconds, matching the frontend types.
 `starred` is server-driven: send the desired value, not a toggle.
 
-The profile is a singleton row (no auth yet). `GET` returns the frontend
+The profile is a singleton row (auth is separate). `GET` returns the frontend
 defaults (`{ name: 'Guest', email: '', avatarColor: 'indigo' }`) until the first
 save. `PUT` accepts any subset of `name` (≤40), `email` (optional, empty string
 clears it), and `avatarColor` (one of the seven `AVATAR_COLORS` ids), and creates
 the row on first save. Sending an empty body is rejected with 400.
 
+### Auth
+
+`POST /api/v1/auth/signup` accepts `firstName`, `lastName`, `email`, and
+`password` (8–72 characters). It stores the email in lower case, hashes the
+password with bcrypt, and returns `{ accessToken, refreshToken, user }`. A
+duplicate email is rejected with 409. `POST /api/v1/auth/login` accepts `email`
+and `password` and returns the same shape; invalid credentials are rejected with
+401.
+
+`POST /api/v1/auth/refresh` accepts `{ "refreshToken": "..." }`, verifies the
+token, and rotates the pair. The previous refresh token stops working
+immediately. Both tokens are signed JWTs: access tokens use `JWT_SECRET` and
+refresh tokens use `JWT_REFRESH_SECRET`. The access token payload contains
+`sub` (user id), `email`, and `type: "access"`.
+
+The latest token pair is stored on the user row as SHA-256 hashes
+(`access_token_hash`, `refresh_token_hash`), so a database leak does not expose
+usable bearer tokens. Raw tokens are only returned to the client. Send the
+access token as `Authorization: Bearer <accessToken>` once protected routes are
+added.
+
 ### Examples
 
 ```bash
+# Sign up
+curl -X POST http://localhost:3000/api/v1/auth/signup \
+  -H 'Content-Type: application/json' \
+  -d '{"firstName":"Seyha","lastName":"Yoeun","email":"you@example.com","password":"password123"}'
+
+# Log in
+curl -X POST http://localhost:3000/api/v1/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"you@example.com","password":"password123"}'
+
+# Refresh the token pair
+curl -X POST http://localhost:3000/api/v1/auth/refresh \
+  -H 'Content-Type: application/json' \
+  -d '{"refreshToken":"<refresh-token>"}'
+
 # Create
 curl -X POST http://localhost:3000/api/v1/todo \
   -H 'Content-Type: application/json' \
@@ -175,6 +219,12 @@ src/
 ├── common/validators/          # reusable class-validator decorators
 ├── config/database.config.ts   # shared TypeORM data source (Nest + CLI)
 ├── migrations/                 # generated migrations
+├── auth/
+│   ├── dto/                    # signup/login/refresh payloads + auth response
+│   ├── entities/user.entity.ts # users table + hashed token pair
+│   ├── auth.controller.ts      # POST /auth/signup, /login, /refresh
+│   ├── auth.service.ts         # bcrypt hashing, JWT issuing/rotation
+│   └── auth.module.ts
 ├── profile/
 │   ├── dto/                    # create/update payloads + response
 │   ├── entities/profile.entity.ts # profiles table (singleton row)

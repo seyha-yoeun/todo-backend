@@ -18,7 +18,7 @@ export enum AvatarColor {
 }
 
 /**
- * Single-row table (there is no auth yet): the app stores exactly one profile.
+ * Single-row table: the profile is not linked to an authenticated user yet.
  */
 @Entity('profiles')
 export class Profile {
