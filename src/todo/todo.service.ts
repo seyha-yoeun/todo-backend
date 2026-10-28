@@ -6,6 +6,7 @@ import { QueryTodosDto } from './dto/query-todos.dto';
 import { TodoStatsResponseDto, TodoResponseDto } from './dto/todo-response.dto';
 import { UpdateTodoDto } from './dto/update-todo.dto';
 import { Todo, TodoStatus } from './entities/todo.entity';
+import { User } from '../auth/entities/user.entity';
 
 @Injectable()
 export class TodoService {
@@ -14,14 +15,18 @@ export class TodoService {
     private readonly todoRepository: Repository<Todo>,
   ) {}
 
-  async create(createTodoDto: CreateTodoDto): Promise<TodoResponseDto> {
-    const todo = this.todoRepository.create(createTodoDto);
+  async create(user: User, createTodoDto: CreateTodoDto): Promise<TodoResponseDto> {
+    const todo = this.todoRepository.create({
+      ...createTodoDto,
+      userId: user.id,
+    });
     const saved = await this.todoRepository.save(todo);
     return this.toResponse(saved);
   }
 
-  async findAll(query: QueryTodosDto): Promise<TodoResponseDto[]> {
+  async findAll(user: User, query: QueryTodosDto): Promise<TodoResponseDto[]> {
     const qb = this.todoRepository.createQueryBuilder('todo');
+    qb.where('todo.userId = :userId', { userId: user.id });
 
     if (query.status !== undefined) {
       qb.andWhere('todo.status = :status', { status: query.status });
@@ -39,8 +44,8 @@ export class TodoService {
     return todos.map((todo) => this.toResponse(todo));
   }
 
-  async findOne(id: string): Promise<TodoResponseDto> {
-    const todo = await this.todoRepository.findOneBy({ id });
+  async findOne(user: User, id: string): Promise<TodoResponseDto> {
+    const todo = await this.todoRepository.findOneBy({ id, userId: user.id });
     if (todo === null) {
       throw new NotFoundException(`Todo ${id} was not found.`);
     }
@@ -48,10 +53,11 @@ export class TodoService {
   }
 
   async update(
+    user: User,
     id: string,
     updateTodoDto: UpdateTodoDto,
   ): Promise<TodoResponseDto> {
-    const todo = await this.todoRepository.findOneBy({ id });
+    const todo = await this.todoRepository.findOneBy({ id, userId: user.id });
     if (todo === null) {
       throw new NotFoundException(`Todo ${id} was not found.`);
     }
@@ -61,8 +67,8 @@ export class TodoService {
     return this.toResponse(saved);
   }
 
-  async remove(id: string): Promise<void> {
-    const todo = await this.todoRepository.findOneBy({ id });
+  async remove(user: User, id: string): Promise<void> {
+    const todo = await this.todoRepository.findOneBy({ id, userId: user.id });
     if (todo === null) {
       throw new NotFoundException(`Todo ${id} was not found.`);
     }
@@ -70,24 +76,39 @@ export class TodoService {
   }
 
   async bulkUpdateStatus(
+    user: User,
     ids: string[],
     status: TodoStatus,
   ): Promise<TodoResponseDto[]> {
-    await this.assertAllExist(ids);
-    await this.todoRepository.update(ids, { status });
+    await this.assertAllExist(user, ids);
+    await this.todoRepository
+      .createQueryBuilder()
+      .update(Todo)
+      .set({ status })
+      .where('id IN (:...ids) AND user_id = :userId', { ids, userId: user.id })
+      .execute();
 
-    const updated = await this.todoRepository.findBy(ids.map((id) => ({ id })));
+    const updated = await this.todoRepository
+      .createQueryBuilder('todo')
+      .where('todo.id IN (:...ids) AND todo.userId = :userId', { ids, userId: user.id })
+      .getMany();
+
     const order = new Map(ids.map((id, index) => [id, index]));
     updated.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
     return updated.map((todo) => this.toResponse(todo));
   }
 
-  async bulkRemove(ids: string[]): Promise<void> {
-    await this.assertAllExist(ids);
-    await this.todoRepository.delete(ids);
+  async bulkRemove(user: User, ids: string[]): Promise<void> {
+    await this.assertAllExist(user, ids);
+    await this.todoRepository
+      .createQueryBuilder()
+      .delete()
+      .from(Todo)
+      .where('id IN (:...ids) AND user_id = :userId', { ids, userId: user.id })
+      .execute();
   }
 
-  async stats(): Promise<TodoStatsResponseDto> {
+  async stats(user: User): Promise<TodoStatsResponseDto> {
     const raw = await this.todoRepository
       .createQueryBuilder('todo')
       .select('COUNT(*)', 'total')
@@ -98,7 +119,9 @@ export class TodoService {
       )
       .addSelect(`COUNT(*) FILTER (WHERE todo.status = :doneStatus)`, 'done')
       .addSelect(`COUNT(*) FILTER (WHERE todo.starred = true)`, 'starred')
+      .where('todo.userId = :userId', { userId: user.id })
       .setParameters({
+        userId: user.id,
         todoStatus: TodoStatus.TODO,
         inProgressStatus: TodoStatus.IN_PROGRESS,
         doneStatus: TodoStatus.DONE,
@@ -114,11 +137,14 @@ export class TodoService {
     };
   }
 
-  /** Throws 404 listing every id that does not exist. */
-  private async assertAllExist(ids: string[]): Promise<void> {
-    const existing = await this.todoRepository.findBy(
-      ids.map((id) => ({ id })),
-    );
+  /** Throws 404 listing every id that does not exist or belong to the user. */
+  private async assertAllExist(user: User, ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+    const existing = await this.todoRepository
+      .createQueryBuilder('todo')
+      .where('todo.id IN (:...ids) AND todo.userId = :userId', { ids, userId: user.id })
+      .getMany();
+
     if (existing.length === ids.length) return;
 
     const existingIds = new Set(existing.map((todo) => todo.id));

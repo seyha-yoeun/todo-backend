@@ -2,9 +2,12 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  JoinColumn,
+  OneToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { User } from '../../auth/entities/user.entity';
 
 /** Matches the frontend `AVATAR_COLORS` ids. */
 export enum AvatarColor {
@@ -17,13 +20,17 @@ export enum AvatarColor {
   VIOLET = 'violet',
 }
 
-/**
- * Single-row table (there is no auth yet): the app stores exactly one profile.
- */
 @Entity('profiles')
 export class Profile {
   @PrimaryGeneratedColumn('uuid')
   id: string;
+
+  @Column({ name: 'user_id', type: 'uuid', nullable: true, unique: true })
+  userId: string | null;
+
+  @OneToOne(() => User, (user) => user.profile, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'user_id' })
+  user: User;
 
   @Column({ type: 'varchar', length: 40, default: 'Guest' })
   name: string;

@@ -24,6 +24,8 @@ async function bootstrap(): Promise<void> {
     .setDescription('REST API for the TaskFlow todo app.')
     .setVersion('1.0')
     .addTag('todo', 'Todo CRUD, filtering, stats, and bulk actions')
+    .addTag('auth', 'Signup and login with JWT access tokens')
+    .addBearerAuth()
     .addServer(`http://localhost:${process.env.PORT ?? 3000}`)
     .build();
   const document = SwaggerModule.createDocument(app, swaggerConfig);

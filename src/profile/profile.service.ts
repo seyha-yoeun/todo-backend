@@ -5,13 +5,7 @@ import { CreateProfileDto } from './dto/create-profile.dto';
 import { ProfileResponseDto } from './dto/profile-response.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { AvatarColor, Profile } from './entities/profile.entity';
-
-/** Mirrors the frontend `DEFAULT_PROFILE`. */
-const DEFAULTS: ProfileResponseDto = {
-  name: 'Guest',
-  email: '',
-  avatarColor: AvatarColor.INDIGO,
-};
+import { User } from '../auth/entities/user.entity';
 
 @Injectable()
 export class ProfileService {
@@ -20,14 +14,22 @@ export class ProfileService {
     private readonly profileRepository: Repository<Profile>,
   ) {}
 
-  /** Returns the single profile, or frontend defaults when it has never been saved. */
-  async find(): Promise<ProfileResponseDto> {
-    const profile = await this.findEntity();
-    return profile === null ? { ...DEFAULTS } : this.toResponse(profile);
+  /** Returns the profile for the specific user, or user-specific defaults when unset. */
+  async find(user: User): Promise<ProfileResponseDto> {
+    const profile = await this.profileRepository.findOneBy({ userId: user.id });
+    if (profile === null) {
+      return {
+        name: `${user.firstName} ${user.lastName}`.trim(),
+        email: user.email,
+        avatarColor: AvatarColor.INDIGO,
+      };
+    }
+    return this.toResponse(profile);
   }
 
-  /** Creates the profile on first save, updates it every time after. */
+  /** Creates or updates the user-specific profile. */
   async save(
+    user: User,
     updateProfileDto: UpdateProfileDto | CreateProfileDto,
   ): Promise<ProfileResponseDto> {
     const provided = Object.values(updateProfileDto).some(
@@ -37,15 +39,19 @@ export class ProfileService {
       throw new BadRequestException('At least one field must be provided.');
     }
 
-    const profile = (await this.findEntity()) ?? this.profileRepository.create();
+    let profile = await this.profileRepository.findOneBy({ userId: user.id });
+    if (!profile) {
+      profile = this.profileRepository.create({
+        userId: user.id,
+        name: `${user.firstName} ${user.lastName}`.trim(),
+        email: user.email,
+        avatarColor: AvatarColor.INDIGO,
+      });
+    }
+
     this.profileRepository.merge(profile, updateProfileDto);
     const saved = await this.profileRepository.save(profile);
     return this.toResponse(saved);
-  }
-
-  private async findEntity(): Promise<Profile | null> {
-    const [profile] = await this.profileRepository.find({ take: 1 });
-    return profile ?? null;
   }
 
   private toResponse(profile: Profile): ProfileResponseDto {
