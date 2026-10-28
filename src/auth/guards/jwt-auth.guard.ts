@@ -48,9 +48,12 @@ export class JwtAuthGuard implements CanActivate {
         throw new UnauthorizedException('Invalid token type.');
       }
 
-      const user = await this.authService.findUserById(payload.sub);
+      const user = await this.authService.findUserForAccessToken(
+        payload.sub,
+        token,
+      );
       if (!user) {
-        throw new UnauthorizedException('User no longer exists.');
+        throw new UnauthorizedException('Session has expired or was revoked.');
       }
 
       request.user = user;

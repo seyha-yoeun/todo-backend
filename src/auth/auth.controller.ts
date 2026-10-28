@@ -11,6 +11,7 @@ import {
   ApiBearerAuth,
   ApiConflictResponse,
   ApiCreatedResponse,
+  ApiNoContentResponse,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
@@ -57,6 +58,18 @@ export class AuthController {
   @ApiUnauthorizedResponse({ description: 'Invalid or expired refresh token' })
   refresh(@Body() refreshTokenDto: RefreshTokenDto): Promise<AuthResponseDto> {
     return this.authService.refresh(refreshTokenDto);
+  }
+
+  @Post('logout')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Revoke the session that owns this refresh token',
+  })
+  @ApiNoContentResponse({
+    description: 'Session revoked (also returned for unknown tokens)',
+  })
+  logout(@Body() refreshTokenDto: RefreshTokenDto): Promise<void> {
+    return this.authService.logout(refreshTokenDto);
   }
 
   @Get('me')

@@ -17,9 +17,10 @@ import { User } from './entities/user.entity';
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
         secret: config.getOrThrow<string>('JWT_SECRET'),
+        // Keep access tokens short-lived; clients renew them via /auth/refresh.
         signOptions: {
           expiresIn: (config.get<string>('JWT_EXPIRES_IN') ??
-            '7d') as SignOptions['expiresIn'],
+            '15m') as SignOptions['expiresIn'],
         },
       }),
     }),

@@ -123,6 +123,40 @@ export class AuthService {
     return this.issueTokens(user);
   }
 
+  /**
+   * Revokes the session that owns this refresh token. Clearing both stored
+   * hashes makes the access token fail the guard and the refresh token fail
+   * `refresh`, immediately rather than at expiry. Unknown or already-revoked
+   * tokens are ignored so logout is idempotent.
+   */
+  async logout(refreshTokenDto: RefreshTokenDto): Promise<void> {
+    let payload: AuthTokenPayload;
+    try {
+      payload = await this.verifyRefreshToken(refreshTokenDto.refreshToken);
+    } catch {
+      return;
+    }
+
+    const user = await this.userRepository
+      .createQueryBuilder('user')
+      .addSelect('user.refreshTokenHash')
+      .where('user.id = :id', { id: payload.sub })
+      .getOne();
+
+    if (
+      user === null ||
+      user.refreshTokenHash === null ||
+      !this.tokenMatches(refreshTokenDto.refreshToken, user.refreshTokenHash)
+    ) {
+      return;
+    }
+
+    await this.userRepository.update(user.id, {
+      accessTokenHash: null,
+      refreshTokenHash: null,
+    });
+  }
+
   private async issueTokens(user: User): Promise<AuthResponseDto> {
     const payload = { sub: user.id, email: user.email, role: user.role };
     const [accessToken, refreshToken] = await Promise.all([
@@ -170,6 +204,35 @@ export class AuthService {
 
   async findUserById(id: string): Promise<User | null> {
     return this.userRepository.findOneBy({ id });
+  }
+
+  /**
+   * Returns the user only if `token` is their current access token. A token
+   * that was revoked by logout or replaced by a newer login/refresh is
+   * rejected even though its signature and expiry are still valid.
+   */
+  async findUserForAccessToken(
+    id: string,
+    token: string,
+  ): Promise<User | null> {
+    const user = await this.userRepository
+      .createQueryBuilder('user')
+      .addSelect('user.accessTokenHash')
+      .where('user.id = :id', { id })
+      .getOne();
+
+    if (
+      user === null ||
+      user.accessTokenHash === null ||
+      !this.tokenMatches(token, user.accessTokenHash)
+    ) {
+      return null;
+    }
+
+    // Keep the hash off the request-scoped user object. Deleting (rather than
+    // nulling) it means a later `save(user)` leaves the column untouched.
+    delete (user as Partial<User>).accessTokenHash;
+    return user;
   }
 
   toUserResponse(user: User): AuthUserResponseDto {
