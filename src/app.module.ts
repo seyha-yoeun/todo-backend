@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { TypeOrmModule, TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -7,6 +8,11 @@ import { databaseConfig } from './config/database.config';
 import { TodoModule } from './todo/todo.module';
 import { ProfileModule } from './profile/profile.module';
 import { AuthModule } from './auth/auth.module';
+import {
+  LoggingInterceptor,
+  ResponseInterceptor,
+  TimeoutInterceptor,
+} from './common';
 
 @Module({
   imports: [
@@ -28,6 +34,20 @@ import { AuthModule } from './auth/auth.module';
     AuthModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    // Global interceptors run in this order: logging wraps everything,
+    // so it also records timeouts and the final status code.
+    { provide: APP_INTERCEPTOR, useClass: LoggingInterceptor },
+    {
+      provide: APP_INTERCEPTOR,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) =>
+        new TimeoutInterceptor(
+          Number(config.get<string>('REQUEST_TIMEOUT_MS')),
+        ),
+    },
+    { provide: APP_INTERCEPTOR, useClass: ResponseInterceptor },
+  ],
 })
 export class AppModule {}
