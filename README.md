@@ -53,7 +53,7 @@ npm run start:dev
 | Password  | `admin`             |
 | PG server | `TaskFlow Postgres` |
 
-The Postgres server is pre-registered (see `docker/pgadmin/servers.json`), so
+The Postgres server is pre-registered (see `configs.pgadmin-servers` in `compose.yaml`), so
 after logging in just expand **Servers → TaskFlow Postgres → Databases →
 todo_db → Schemas → public → Tables → todos**. It asks for the database
 password on first connect: `postgres`.

@@ -57,11 +57,30 @@ services:
     volumes:
       # Persists pgAdmin settings and any servers you add by hand.
       - todo-pgadmin-data:/var/lib/pgadmin
+    configs:
       # Pre-registers the Postgres server so it shows up on first launch.
-      - ./docker/pgadmin/servers.json:/pgadmin4/servers.json:ro
+      - source: pgadmin-servers
+        target: /pgadmin4/servers.json
     depends_on:
       postgres:
         condition: service_healthy
+
+configs:
+  pgadmin-servers:
+    content: |
+      {
+        "Servers": {
+          "1": {
+            "Name": "TaskFlow Postgres",
+            "Group": "Servers",
+            "Host": "postgres",
+            "Port": 5432,
+            "MaintenanceDB": "todo_db",
+            "Username": "postgres",
+            "SSLMode": "prefer"
+          }
+        }
+      }
 
 volumes:
   todo-postgres-data:
