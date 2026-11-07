@@ -14,9 +14,6 @@ services:
       # Inside the compose network, Postgres is reached by its service name.
       DB_HOST: postgres
       DB_PORT: 5432
-      DB_USER: postgres
-      DB_PASSWORD: postgres
-      DB_NAME: todo_db
     ports:
       - '${PORT:-3000}:3000'
     depends_on:
@@ -28,15 +25,16 @@ services:
     container_name: todo-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: todo_db
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-todo_db}
     ports:
-      - '5432:5432'
+      # Bound to localhost so the database is not reachable from your network.
+      - '127.0.0.1:5432:5432'
     volumes:
       - todo-postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      test: ['CMD-SHELL', 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
       interval: 5s
       timeout: 5s
       retries: 10
@@ -48,12 +46,12 @@ services:
     environment:
       # Desktop (single-user) mode: no login screen beyond the credentials below.
       PGADMIN_CONFIG_SERVER_MODE: 'False'
-      PGADMIN_DEFAULT_EMAIL: admin@example.com
-      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@gmail.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-password}
       # Keeps the pgAdmin master password stable between restarts.
       PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
     ports:
-      - '5050:80'
+      - '127.0.0.1:5050:80'
     volumes:
       # Persists pgAdmin settings and any servers you add by hand.
       - todo-pgadmin-data:/var/lib/pgadmin
@@ -75,8 +73,8 @@ configs:
             "Group": "Servers",
             "Host": "postgres",
             "Port": 5432,
-            "MaintenanceDB": "todo_db",
-            "Username": "postgres",
+            "MaintenanceDB": "${DB_NAME}",
+            "Username": "${DB_USER}",
             "SSLMode": "prefer"
           }
         }

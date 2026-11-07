@@ -47,16 +47,20 @@ npm run start:dev
 
 `docker compose up -d` also starts pgAdmin at **http://localhost:5050**:
 
-|           | Value               |
-| --------- | ------------------- |
-| Email     | `admin@example.com` |
-| Password  | `admin`             |
-| PG server | `TaskFlow Postgres` |
+|           | Value                             |
+| --------- | --------------------------------- |
+| Email     | `PGADMIN_EMAIL` from `.env`       |
+| Password  | `PGADMIN_PASSWORD` from `.env`    |
+| PG server | `TaskFlow Postgres`               |
+
+All credentials (database and pgAdmin) are read from `.env`, which is
+gitignored. Any that are missing fall back to the local-dev defaults
+(`postgres` / `postgres`, `admin@example.com` / `admin`).
 
 The Postgres server is pre-registered (see `configs.pgadmin-servers` in `compose.yaml`), so
 after logging in just expand **Servers → TaskFlow Postgres → Databases →
 todo_db → Schemas → public → Tables → todos**. It asks for the database
-password on first connect: `postgres`.
+password on first connect: your `DB_PASSWORD`.
 
 Data is kept in named volumes (`todo-postgres-data`, `todo-pgadmin-data`), so
 `docker compose down` / `up`, restarts, and rebuilds all preserve both the
